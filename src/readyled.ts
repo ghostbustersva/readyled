@@ -92,7 +92,6 @@ const renderAndResampleText = ({
     const data = new Array(sampleWidth * sampleHeight);
 
     for (let y = 0; y < sampleHeight; y++) {
-        let columnData = [];
         for (let x = 0; x < sampleWidth; x++) {
 
             // Map low-res pixel to nearest source pixel
@@ -197,17 +196,20 @@ const renderSign = function ({
         target.appendChild(row);
     }
 
-    setInterval(() => {
-        const rows = document.querySelectorAll('.readyled-row');
-        for (let i = 0, l = rows.length; i < l; ++i) {
-            const row = rows[i] as HTMLElement;
-            const shiftPixel = row.firstElementChild;
-            if (!shiftPixel) {
-                continue;
+    if (target.getAttribute('data-scrolling') !== 'true') {
+        setInterval(() => {
+            target.setAttribute('data-scrolling', 'true');
+            const rows = document.querySelectorAll('.readyled-row');
+            for (let i = 0, l = rows.length; i < l; ++i) {
+                const row = rows[i] as HTMLElement;
+                const shiftPixel = row.firstElementChild;
+                if (!shiftPixel) {
+                    continue;
+                }
+                row.appendChild(shiftPixel);
             }
-            row.appendChild(shiftPixel);
-        }
-    }, interval);
+        }, interval);
+    }
 };
 
 document.fonts.ready.then(() => {

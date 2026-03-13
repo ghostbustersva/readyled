@@ -55,7 +55,6 @@ const renderAndResampleText = ({ text, fontSize, fontFamily, sampleWidth, sample
     const src = ctx.getImageData(0, 0, width, height).data;
     const data = new Array(sampleWidth * sampleHeight);
     for (let y = 0; y < sampleHeight; y++) {
-        let columnData = [];
         for (let x = 0; x < sampleWidth; x++) {
             // Map low-res pixel to nearest source pixel
             const srcX = Math.floor((x / sampleWidth) * width);
@@ -122,17 +121,20 @@ const renderSign = function ({ target, data, width, sampleWidth = Math.round(0.2
         });
         target.appendChild(row);
     }
-    setInterval(() => {
-        const rows = document.querySelectorAll('.readyled-row');
-        for (let i = 0, l = rows.length; i < l; ++i) {
-            const row = rows[i];
-            const shiftPixel = row.firstElementChild;
-            if (!shiftPixel) {
-                continue;
+    if (target.getAttribute('data-scrolling') !== 'true') {
+        setInterval(() => {
+            target.setAttribute('data-scrolling', 'true');
+            const rows = document.querySelectorAll('.readyled-row');
+            for (let i = 0, l = rows.length; i < l; ++i) {
+                const row = rows[i];
+                const shiftPixel = row.firstElementChild;
+                if (!shiftPixel) {
+                    continue;
+                }
+                row.appendChild(shiftPixel);
             }
-            row.appendChild(shiftPixel);
-        }
-    }, interval);
+        }, interval);
+    }
 };
 document.fonts.ready.then(() => {
     if (!document.body) {
