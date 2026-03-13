@@ -2,18 +2,19 @@ export type ReadyLEDParams = {
     font?: string;
     pixelHeight: number;
     scrollSpeed?: number;
+    signWidth?: number;
     target: HTMLElement;
     text: string;
 }
 
 const readyLED = (params: ReadyLEDParams) => {
-    const { font, pixelHeight, scrollSpeed = 150, target, text } = params;
+    const { font, pixelHeight, scrollSpeed = 150, signWidth, target, text } = params;
     const fontSize = 96;
     const renderWidth = Math.ceil(fontSize * 1.2 * text.length);
     const renderHeight = Math.ceil(fontSize * 0.9);
     const pixelWidth = Math.ceil(pixelHeight / renderHeight * renderWidth);
 
-    const data = renderAndResampleText({
+    const { data, width: clearedWidth } = renderAndResampleText({
         width: renderWidth,
         height: renderHeight,
         text,
@@ -30,14 +31,14 @@ const readyLED = (params: ReadyLEDParams) => {
     renderSign({
         data,
         interval: scrollSpeed,
-        sampleWidth: pixelWidth,
-        signWidth: pixelWidth,
+        sampleWidth: clearedWidth,
+        signWidth: signWidth ?? pixelWidth,
         target: sign as HTMLElement,
-        width: pixelWidth,
+        width: clearedWidth,
         pixelSize: 1,
     });
 
-    sign.style.width = `${pixelWidth}px`;
+    sign.style.width = `${signWidth ?? pixelWidth}px`;
     target.appendChild(sign);
 };
 
@@ -53,23 +54,21 @@ type RenderAndResampleTextParams = {
 };
 
 const renderAndResampleText = ({
-    width,
-    height,
     text,
     fontSize,
     fontFamily,
     sampleWidth,
     sampleHeight,
     threshold = 128 // luminance threshold for ON/OFF
-}: RenderAndResampleTextParams): boolean[] => {
+}: RenderAndResampleTextParams): { data: boolean[], width: number } => {
     const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
+    const width = canvas.width = Math.ceil(fontSize * 1.2 * text.length);
+    const height = canvas.height = fontSize;
 
     const ctx = canvas.getContext('2d');
 
     if (!ctx) {
-        return [];
+        return { data: [], width };
     }
 
     ctx.fillStyle = 'white';
@@ -84,6 +83,7 @@ const renderAndResampleText = ({
     const data = new Array(sampleWidth * sampleHeight);
 
     for (let y = 0; y < sampleHeight; y++) {
+        let columnData = [];
         for (let x = 0; x < sampleWidth; x++) {
 
             // Map low-res pixel to nearest source pixel
@@ -103,8 +103,30 @@ const renderAndResampleText = ({
             data[y * sampleWidth + x] = luminance < threshold;
         }
     }
+    const cleared = clearBlankColumns(data, sampleHeight, sampleWidth)
+    return {
+        data: cleared,
+        width: cleared.length / sampleHeight,
+    }
+};
 
-    return data;
+const clearBlankColumns = (data: boolean[], height: number, width: number) => {
+    const cleared = data.slice();
+    for (let i = width - 1; i >= 0; i--) {
+        const columnData = [];
+        for (let j = 0; j < height; j++) {
+            const datum = cleared[j * i + i];
+            columnData.push(datum);
+        }
+        const blankColumn = columnData.filter(d => d).length === 0;
+        if (!blankColumn) {
+            break;
+        }
+        for (let j = height - 1; j >= 0; j--) {
+            cleared.splice(j * i + i, 1);
+        }
+    }
+    return cleared;
 };
 
 const createPixel = (on: boolean, size: number = 1) => {
@@ -184,11 +206,14 @@ document.fonts.ready.then(() => {
         console.error('document.body not available');
         return;
     }
+
+    const text = ` WE'RE READY TO BELIEVE YOU! (804) 482-1217 -`;
+
     readyLED({
         font: 'Elan',
         pixelHeight: 10,
-        scrollSpeed: 200,
+        scrollSpeed: 150,
         target: document.body,
-        text: `WE'RE READY TO BELIEVE YOU! (804) 482-1217 `,
+        text,
     });
 });

@@ -1,177 +1,41 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <style>
-            @font-face {
-                font-family: "Elan";
-                src: local("Elan AT Medium"), url("elan.woff2") format("woff2");
-            }
+<head>
+    <style>
+        @font-face {
+            font-family: "Elan";
+            src: local("Elan AT Medium"), url("elan.woff2") format("woff2");
+        }
 
-            .sign {
-                font-size: 5px;
-                line-height: 0px;
+        .readyled-sign {
+            font-size: 4px;
+            line-height: 0px;
 
-                overflow-x: hidden;
-                background-color: #000;
-            }
+            overflow-x: hidden;
+            background-color: #000;
+        }
 
-            .pixel {
-                display: inline-block;
-                margin: 0.1em;
-                border-radius: 50%;
-            }
+        .readyled-pixel {
+            display: inline-block;
+            margin: 0.1em;
+            border-radius: 50%;
+        }
 
-            .pixel-on {
-                background-color: red;
-            }
+        .readyled-pixel-on {
+            background-color: red;
+        }
 
-            #font-loader {
-                position: absolute;
-                top: -300px;
-                left: -10000px;
-            }
-        </style>
-    </head>
-    <body>
-        <div id="font-loader">
-            <span style="font-family: Elan">COOKIE</span>
-        </div>
-        <script>
-            const renderAndResampleText = ({
-                width,
-                height,
-                text,
-                fontSize,
-                fontFamily,
-                sampleWidth,
-                sampleHeight,
-                threshold = 128 // luminance threshold for ON/OFF
-            }) => {
-                const canvas = document.createElement("canvas");
-                canvas.width = width;
-                canvas.height = height;
-
-                const ctx = canvas.getContext("2d");
-
-                ctx.fillStyle = "white";
-                ctx.fillRect(0, 0, width, height);
-
-                ctx.fillStyle = "black";
-                ctx.font = `${fontSize}px ${fontFamily}`;
-                ctx.textBaseline = "middle";
-                ctx.fillText(text, 0, height / 2, width);
-
-                const src = ctx.getImageData(0, 0, width, height).data;
-                const bits = new Array(sampleWidth * sampleHeight);
-
-                for (let y = 0; y < sampleHeight; y++) {
-                    for (let x = 0; x < sampleWidth; x++) {
-
-                        // Map low-res pixel to nearest source pixel
-                        const srcX = Math.floor((x / sampleWidth) * width);
-                        const srcY = Math.floor((y / sampleHeight) * height);
-
-                        const idx = (srcY * width + srcX) * 4;
-
-                        const r = src[idx];
-                        const g = src[idx + 1];
-                        const b = src[idx + 2];
-
-                        // Convert to grayscale luminance
-                        const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-
-                        // Convert to ON/OFF bit
-                        bits[y * sampleWidth + x] = luminance < threshold ? 1 : 0;
-                    }
-                }
-
-                return {
-                    width: sampleWidth,
-                    height: sampleHeight,
-                    data: bits // array of 0/1 values
-                };
-            };
-
-            const createPixel = (target, on, size) => {
-                const pixel = document.createElement("div");
-                pixel.classList.add("pixel");
-                if (on) {
-                    pixel.classList.add('pixel-on');
-                }
-                pixel.style.width = `${size}em`;
-                pixel.style.height = `${size}em`;
-                return pixel
-            };
-
-            const createPixelRow = ({data, rowIndex, rowSize, pixelSize}) => {
-                const row = document.createElement("div");
-                row.classList.add("row");
-                row.style.width = `${rowSize * 1.1}em`;
-                const rowData = data.slice(rowIndex, rowIndex + rowSize);
-                rowData.forEach(rowDatum =>
-                    row.appendChild(createPixel(row, !!rowDatum, pixelSize))
-                );
-                return row;
-            };
-
-            const renderSign = function ({
-                width,
-                height,
-                signWidth,
-                text,
-                fontSize = 48,
-                fontFamily = "sans-serif",
-                sampleWidth = Math.round(0.2 * width),
-                sampleHeight = Math.round(0.2 * height),
-                pixelSize = 0.5,
-            }) {
-                const sign = document.createElement('div');
-                sign.classList.add('sign');
-
-                const result = renderAndResampleText({
-                    width,
-                    height,
-                    text,
-                    fontSize,
-                    fontFamily,
-                    sampleWidth,
-                    sampleHeight,
-                });
-
-                for (let i = 0, l = result.data.length - 1;
-                     i < l;
-                     i += result.width) {
-                    const row = createPixelRow({
-                        data: result.data,
-                        rowIndex: i,
-                        rowSize: result.width,
-                        pixelSize,
-                    });
-                    sign.appendChild(row);
-                }
-
-                sign.style.width = `${pixelSize * 1.1 * signWidth}em`;
-                document.body.appendChild(sign);
-
-                setInterval(() => {
-                    const rows = document.querySelectorAll('.row');
-                    for (let i = 0, l = rows.length; i < l; ++i) {
-                        const shiftPixel = rows[i].firstElementChild;
-                        rows[i].appendChild(shiftPixel);
-                    }
-                }, 300);
-            };
-
-            document.fonts.ready.then(() => renderSign({
-                width: 600,
-                height: 100,
-                signWidth: 120,
-                text: 'WE\'RE READY TO BELIEVE YOU!  ',
-                fontSize: 110,
-                fontFamily: 'Elan',
-                sampleWidth: 120,
-                sampleHeight: 20,
-            }));
-        </script>
-    </body>
+        #font-loader {
+            position: absolute;
+            top: -300px;
+            left: -10000px;
+        }
+    </style>
+</head>
+<body>
+    <div id="font-loader">
+        <span style="font-family: Elan">Elan</span>
+    </div>
+    <script type="module" src="./dist/readyled.js"></script>
+</body>
 </html>
