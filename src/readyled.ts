@@ -10,11 +10,15 @@ export type ReadyLEDParams = {
 export const readyLED = (params: ReadyLEDParams) => {
     const { font, pixelHeight, scrollSpeed = 150, signWidth, target, text } = params;
 
+    let sign;
     if (document.querySelector('.readyled-sign')) {
-        const previousSign = document.querySelector('.readyled-sign');
-        if (previousSign) {
-            previousSign.innerHTML = '';
+        sign = document.querySelector('.readyled-sign') as HTMLElement;
+        if (sign) {
+            sign.innerHTML = '';
         }
+    } else {
+        sign = document.createElement('div');
+        sign.classList.add('readyled-sign');
     }
 
     const fontSize = 96;
@@ -32,9 +36,6 @@ export const readyLED = (params: ReadyLEDParams) => {
         sampleWidth: pixelWidth,
         threshold: 128,
     });
-
-    const sign = document.createElement('div');
-    sign.classList.add('readyled-sign');
 
     renderSign({
         data,
