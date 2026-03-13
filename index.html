@@ -36,6 +36,30 @@
     <div id="font-loader">
         <span style="font-family: Elan">Elan</span>
     </div>
-    <script type="module" src="./dist/readyled.js"></script>
+    <div contenteditable="true" id="readyled-config">
+        {
+        "font": "Elan",
+        "pixelHeight": 10,
+        "scrollSpeed": 150,
+        "signWidth": 320,
+        "text": "WE'RE READY TO BELIEVE YOU! (804) 482-1217 -"
+        }
+    </div>
+    <div>
+        <button id="startButton">START</button>
+    </div>
+    <script type="module">
+        import { readyLED} from './dist/readyled.js';
+        const startLED = () => {
+            const readyLEDConfig = document.getElementById('readyled-config');
+            if (readyLEDConfig) {
+                readyLED({
+                    target: document.body,
+                    ...JSON.parse(readyLEDConfig.innerText),
+                });
+            }
+        };
+        document.getElementById('startButton').onclick = startLED;
+    </script>
 </body>
 </html>

@@ -7,8 +7,16 @@ export type ReadyLEDParams = {
     text: string;
 }
 
-const readyLED = (params: ReadyLEDParams) => {
+export const readyLED = (params: ReadyLEDParams) => {
     const { font, pixelHeight, scrollSpeed = 150, signWidth, target, text } = params;
+
+    if (document.querySelector('.readyled-sign')) {
+        const previousSign = document.querySelector('.readyled-sign');
+        if (previousSign) {
+            previousSign.innerHTML = '';
+        }
+    }
+
     const fontSize = 96;
     const renderWidth = Math.ceil(fontSize * 1.2 * text.length);
     const renderHeight = Math.ceil(fontSize * 0.9);
@@ -209,12 +217,21 @@ document.fonts.ready.then(() => {
 
     const text = ` WE'RE READY TO BELIEVE YOU! (804) 482-1217 -`;
 
-    readyLED({
-        font: 'Elan',
+    let config = {
         pixelHeight: 10,
         scrollSpeed: 150,
         signWidth: 320,
         target: document.body,
         text,
-    });
+    };
+
+    const readyLEDConfig = document.getElementById('readyled-config');
+    if (readyLEDConfig) {
+        config = {
+            ...config,
+            ...JSON.parse(readyLEDConfig.innerText),
+        };
+    }
+
+    readyLED(config);
 });
