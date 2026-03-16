@@ -1,5 +1,65 @@
-export const readyLED = (params) => {
+let readyLEDRequestId = 0;
+const isString = (value) => typeof value === 'string';
+const isFontAvailable = (fontFamily) => {
+    if (!fontFamily) {
+        return true;
+    }
+    if (!('fonts' in document) || typeof document.fonts.check !== 'function') {
+        return true;
+    }
+    const normalizedFontFamily = fontFamily.includes('"') || fontFamily.includes("'")
+        ? fontFamily
+        : `"${fontFamily}"`;
+    return document.fonts.check(`16px ${normalizedFontFamily}`);
+};
+const wait = (delay) => new Promise((resolve) => {
+    window.setTimeout(resolve, delay);
+});
+const waitForFont = async (fontFamily, maxWaitMilliseconds, fontCheckInterval) => {
+    if (!fontFamily || isFontAvailable(fontFamily)) {
+        return true;
+    }
+    if (maxWaitMilliseconds <= 0) {
+        return false;
+    }
+    // Trigger font loading by adding a hidden element that uses the font
+    if (document.body) {
+        const loader = document.createElement('span');
+        loader.setAttribute('style', `
+            position:absolute;
+            top:-9999px;
+            left:-9999px;
+            visibility:hidden;
+            font-family:${fontFamily};
+        `);
+        loader.textContent = fontFamily;
+        document.body.appendChild(loader);
+    }
+    const pollDelay = Math.max(1, fontCheckInterval);
+    const deadline = Date.now() + maxWaitMilliseconds;
+    while (Date.now() < deadline) {
+        await wait(Math.min(pollDelay, Math.max(deadline - Date.now(), 0)));
+        if (isFontAvailable(fontFamily)) {
+            return true;
+        }
+    }
+    return isFontAvailable(fontFamily);
+};
+const resolveFontFamily = async ({ fallbackFont, font, fontCheckInterval = 100, maxWait = 3, }) => {
+    const maxWaitMilliseconds = Math.max(0, maxWait) * 1000;
+    if (isString(font) && await waitForFont(font, maxWaitMilliseconds, fontCheckInterval)) {
+        return font;
+    }
+    if (isString(fallbackFont) && isFontAvailable(fallbackFont)) {
+        return fallbackFont;
+    }
+    return 'sans-serif';
+};
+const renderReadyLED = (params) => {
     const { font, pixelHeight, scrollSpeed = 150, signWidth, target, text } = params;
+    if (!isString(font)) {
+        return;
+    }
     let sign;
     if (document.querySelector('.readyled-sign')) {
         sign = document.querySelector('.readyled-sign');
@@ -15,27 +75,40 @@ export const readyLED = (params) => {
     const renderWidth = Math.ceil(fontSize * 1.2 * text.length);
     const renderHeight = Math.ceil(fontSize * 0.9);
     const pixelWidth = Math.ceil(pixelHeight / renderHeight * renderWidth);
-    const { data, width: clearedWidth } = renderAndResampleText({
+    const { data, width: sampleWidth } = renderAndResampleText({
         width: renderWidth,
         height: renderHeight,
         text,
         fontSize,
-        fontFamily: font ?? 'sans-serif',
+        fontFamily: font,
         sampleHeight: pixelHeight,
         sampleWidth: pixelWidth,
         threshold: 128,
     });
+    if (sampleWidth <= 0 || data.length === 0) {
+        sign.style.width = `${signWidth ?? sampleWidth}px`;
+        target.appendChild(sign);
+        return;
+    }
     renderSign({
         data,
         interval: scrollSpeed,
-        sampleWidth: clearedWidth,
+        sampleWidth,
         signWidth: signWidth ?? pixelWidth,
         target: sign,
-        width: clearedWidth,
+        width: sampleWidth,
         pixelSize: 1,
     });
     sign.style.width = `${signWidth ?? pixelWidth}px`;
     target.appendChild(sign);
+};
+export const readyLED = async (params) => {
+    const requestId = ++readyLEDRequestId;
+    const renderFont = await resolveFontFamily(params);
+    if (requestId !== readyLEDRequestId) {
+        return;
+    }
+    renderReadyLED({ ...params, font: renderFont });
 };
 const renderAndResampleText = ({ text, fontSize, fontFamily, sampleWidth, sampleHeight, threshold = 128 // luminance threshold for ON/OFF
  }) => {
@@ -52,12 +125,14 @@ const renderAndResampleText = ({ text, fontSize, fontFamily, sampleWidth, sample
     ctx.font = `${fontSize}px ${fontFamily}`;
     ctx.textBaseline = 'middle';
     ctx.fillText(text, 0, height / 2);
+    const measuredWidth = ctx.measureText(text).width;
+    const actualSampleWidth = Math.min(sampleWidth, Math.ceil((sampleHeight / height) * measuredWidth));
     const src = ctx.getImageData(0, 0, width, height).data;
-    const data = new Array(sampleWidth * sampleHeight);
+    const data = new Array(actualSampleWidth * sampleHeight);
     for (let y = 0; y < sampleHeight; y++) {
-        for (let x = 0; x < sampleWidth; x++) {
-            // Map low-res pixel to nearest source pixel
-            const srcX = Math.floor((x / sampleWidth) * width);
+        for (let x = 0; x < actualSampleWidth; x++) {
+            // Map low-res pixel to nearest source pixel within the measured text extent
+            const srcX = Math.floor((x / actualSampleWidth) * measuredWidth);
             const srcY = Math.floor((y / sampleHeight) * height);
             const idx = (srcY * width + srcX) * 4;
             const r = src[idx] ?? 0;
@@ -66,32 +141,13 @@ const renderAndResampleText = ({ text, fontSize, fontFamily, sampleWidth, sample
             // Convert to grayscale luminance
             const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
             // Convert to ON/OFF bit
-            data[y * sampleWidth + x] = luminance < threshold;
+            data[y * actualSampleWidth + x] = luminance < threshold;
         }
     }
-    const cleared = clearBlankColumns(data, sampleHeight, sampleWidth);
     return {
-        data: cleared,
-        width: cleared.length / sampleHeight,
+        data,
+        width: actualSampleWidth,
     };
-};
-const clearBlankColumns = (data, height, width) => {
-    const cleared = data.slice();
-    for (let i = width - 1; i >= 0; i--) {
-        const columnData = [];
-        for (let j = 0; j < height; j++) {
-            const datum = cleared[j * i + i];
-            columnData.push(datum);
-        }
-        const blankColumn = columnData.filter(d => d).length === 0;
-        if (!blankColumn) {
-            break;
-        }
-        for (let j = height - 1; j >= 0; j--) {
-            cleared.splice(j * i + i, 1);
-        }
-    }
-    return cleared;
 };
 const createPixel = (on, size = 1) => {
     const pixel = document.createElement('div');
@@ -112,6 +168,9 @@ const createPixelRow = ({ data, rowIndex, rowSize, pixelSize }) => {
     return row;
 };
 const renderSign = function ({ target, data, width, sampleWidth = Math.round(0.2 * width), pixelSize = 0.5, interval = 300, }) {
+    if (sampleWidth <= 0) {
+        return;
+    }
     for (let i = 0, l = data.length - 1; i < l; i += sampleWidth) {
         const row = createPixelRow({
             data,
@@ -136,7 +195,7 @@ const renderSign = function ({ target, data, width, sampleWidth = Math.round(0.2
         }, interval);
     }
 };
-document.fonts.ready.then(() => {
+const runReadyLEDDemo = () => {
     if (!document.body) {
         console.error('document.body not available');
         return;
@@ -156,6 +215,12 @@ document.fonts.ready.then(() => {
             ...JSON.parse(readyLEDConfig.innerText),
         };
     }
-    readyLED(config);
-});
+    readyLED(config).then();
+};
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', runReadyLEDDemo, { once: true });
+}
+else {
+    runReadyLEDDemo();
+}
 //# sourceMappingURL=readyled.js.map

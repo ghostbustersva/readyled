@@ -7,6 +7,11 @@
             src: local("Elan AT Medium"), url("elan.woff2") format("woff2");
         }
 
+        #readyled-config {
+            white-space: pre;
+            font-family: monospace;
+        }
+
         .readyled-sign {
             font-size: 4px;
             line-height: 0px;
@@ -24,25 +29,19 @@
         .readyled-pixel-on {
             background-color: red;
         }
-
-        #font-loader {
-            position: absolute;
-            top: -300px;
-            left: -10000px;
-        }
     </style>
 </head>
 <body>
-    <div id="font-loader">
-        <span style="font-family: Elan">Elan</span>
-    </div>
     <div contenteditable="true" id="readyled-config">
         {
-        "font": "Elan",
-        "pixelHeight": 10,
-        "scrollSpeed": 150,
-        "signWidth": 320,
-        "text": "WE'RE READY TO BELIEVE YOU! (804) 482-1217 -"
+          "font": "Elan",
+          "fallbackFont": "Arial",
+          "fontCheckInterval": 100,
+          "maxWait": 3,
+          "pixelHeight": 10,
+          "scrollSpeed": 150,
+          "signWidth": 320,
+          "text": "WE'RE READY TO BELIEVE YOU! (804) 482-1217 -"
         }
     </div>
     <div>
@@ -60,6 +59,7 @@
             }
         };
         document.getElementById('startButton').onclick = startLED;
+        startLED();
     </script>
 </body>
 </html>
