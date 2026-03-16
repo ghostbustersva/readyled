@@ -43,6 +43,30 @@ const cssSizeInPixels = (value: string, element: HTMLElement = document.body): n
     return pixels / 100.0;
 };
 
+// Snap a value to the closest even multiple of a positive step size
+const snapToClosestEvenMultiple = (value: number, step: number): number => {
+    if (step <= 0) {
+        return Math.max(0, Math.round(value));
+    }
+
+    const k = value / step;
+    let n = Math.round(k);
+
+    if (n % 2 !== 0) {
+        const down = n - 1;
+        const up = n + 1;
+        const downErr = Math.abs(k - down);
+        const upErr = Math.abs(k - up);
+        n = downErr <= upErr ? down : up;
+    }
+
+    if (n < 0) {
+        n = 0;
+    }
+
+    return n * step;
+};
+
 const isFontAvailable = (fontFamily?: string) => {
     if (!fontFamily) {
         return true;
@@ -177,7 +201,20 @@ const renderReadyLED = (params: ReadyLEDParams & { font: string }) => {
         text,
     });
 
-    sign.style.width = `${signWidth ?? pixelWidth}px`;
+    const cssPixelSize = cssSizeInPixels(
+        getCSSProperty('--readyled-pixel-size', '4'),
+        sign,
+    );
+    const cssPixelGap = cssSizeInPixels(
+        getCSSProperty('--readyled-pixel-gap', '0.5'),
+        sign,
+    );
+    const cellWidth = cssPixelSize + cssPixelGap;
+
+    const desiredWidth = signWidth ?? pixelWidth;
+    const snappedWidth = snapToClosestEvenMultiple(desiredWidth, cellWidth);
+
+    sign.style.width = `${snappedWidth}px`;
     sign.style.setProperty('--readyled-columns', sampleWidth.toString());
     sign.style.setProperty('--readyled-animation-duration', `${sampleWidth * scrollSpeed}ms`);
 
