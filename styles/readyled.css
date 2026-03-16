@@ -1,0 +1,45 @@
+@keyframes readyled-scroll {
+    from {
+        transform: translateX(0);
+    }
+    to {
+        transform: translateX(-50%);
+    }
+}
+
+#readyled-config {
+    white-space: pre;
+    font-family: monospace;
+}
+
+.readyled-sign {
+    font-size: var(--readyled-pixel-size);
+    line-height: 0;
+    overflow-x: hidden;
+    background-color: #000;
+}
+
+.readyled-sign-track {
+    display: flex;
+    width: max-content;
+    will-change: transform;
+}
+
+.readyled-sign-track.ready {
+    animation: readyled-scroll var(--readyled-animation-duration, 10s) steps(var(--readyled-columns)) infinite;
+}
+
+.readyled-sign img {
+    display: inline-block;
+}
+
+.readyled-pixel {
+    display: inline-block;
+    margin: var(--readyled-pixel-gap);
+    border-radius: 50%;
+}
+
+.readyled-pixel-on {
+    background-color: red;
+}
+
