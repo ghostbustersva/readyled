@@ -2,6 +2,13 @@
 <html>
 <head>
     <style>
+        :root {
+            /* Base visual size for each LED pixel (1em × 1em in the sign). */
+            --readyled-pixel-font-size: 4px;
+            /* Gap between LED pixels. */
+            --readyled-pixel-margin: 0.1em;
+        }
+
         @font-face {
             font-family: "Elan";
             src: local("Elan AT Medium"), url("elan.woff2") format("woff2");
@@ -13,8 +20,8 @@
         }
 
         .readyled-sign {
-            font-size: 4px;
-            line-height: 0px;
+            font-size: var(--readyled-pixel-font-size);
+            line-height: 0;
 
             overflow-x: hidden;
             background-color: #000;
@@ -22,7 +29,7 @@
 
         .readyled-pixel {
             display: inline-block;
-            margin: 0.1em;
+            margin: var(--readyled-pixel-margin);
             border-radius: 50%;
         }
 
