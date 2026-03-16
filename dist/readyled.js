@@ -1,5 +1,26 @@
 let readyLEDRequestId = 0;
 const isString = (value) => typeof value === 'string';
+const getCSSProperty = (propertyName, defaultValue) => {
+    if (!document.documentElement) {
+        return defaultValue;
+    }
+    const value = window.getComputedStyle(document.documentElement).getPropertyValue(propertyName).trim();
+    return value === '' ? defaultValue : value;
+};
+const cssSizeInPixels = (value, element = document.body) => {
+    if (!value) {
+        return 0;
+    }
+    const testElement = document.createElement('div');
+    testElement.style.position = 'absolute';
+    testElement.style.visibility = 'hidden';
+    // get subpixel values by multiplying by 100
+    testElement.style.width = `calc(${value} * 100)`;
+    element.appendChild(testElement);
+    const pixels = testElement.getBoundingClientRect().width;
+    element.removeChild(testElement);
+    return pixels / 100.0;
+};
 const isFontAvailable = (fontFamily) => {
     if (!fontFamily) {
         return true;
@@ -71,9 +92,12 @@ const renderReadyLED = (params) => {
         sign = document.createElement('div');
         sign.classList.add('readyled-sign');
     }
-    const fontSize = 96;
+    const track = document.createElement('div');
+    track.classList.add('readyled-sign-track');
+    sign.appendChild(track);
+    const fontSize = 48;
     const renderWidth = Math.ceil(fontSize * 1.2 * text.length);
-    const renderHeight = Math.ceil(fontSize * 0.9);
+    const renderHeight = Math.ceil(fontSize * 0.8);
     const pixelWidth = Math.ceil(pixelHeight / renderHeight * renderWidth);
     const { data, width: sampleWidth } = renderAndResampleText({
         width: renderWidth,
@@ -90,17 +114,18 @@ const renderReadyLED = (params) => {
         target.appendChild(sign);
         return;
     }
+    target.appendChild(sign);
     renderSign({
         data,
-        interval: scrollSpeed,
-        sampleWidth,
-        signWidth: signWidth ?? pixelWidth,
-        target: sign,
-        width: sampleWidth,
         pixelSize: 1,
+        sampleWidth,
+        target: track,
+        text,
     });
     sign.style.width = `${signWidth ?? pixelWidth}px`;
-    target.appendChild(sign);
+    sign.style.setProperty('--readyled-columns', sampleWidth.toString());
+    sign.style.setProperty('--readyled-animation-duration', `${sampleWidth * scrollSpeed}ms`);
+    track.classList.add('ready');
 };
 export const readyLED = async (params) => {
     const requestId = ++readyLEDRequestId;
@@ -149,78 +174,90 @@ const renderAndResampleText = ({ text, fontSize, fontFamily, sampleWidth, sample
         width: actualSampleWidth,
     };
 };
-const createPixel = (on, size = 1) => {
-    const pixel = document.createElement('div');
-    pixel.classList.add('readyled-pixel');
-    if (on) {
-        pixel.classList.add('readyled-pixel-on');
+const createLEDImage = ({ target, data, pixelSize = 0.5, sampleWidth, }) => {
+    const totalCells = data.length;
+    if (!sampleWidth || totalCells === 0) {
+        return { url: '', height: 0, width: 0 };
     }
-    pixel.style.width = `${size}em`;
-    pixel.style.height = `${size}em`;
-    return pixel;
-};
-const createPixelRow = ({ data, rowIndex, rowSize, pixelSize }) => {
-    const row = document.createElement('div');
-    row.classList.add('readyled-row');
-    row.style.width = `${rowSize * 2}em`;
-    const rowData = data.slice(rowIndex, rowIndex + rowSize);
-    rowData.forEach((rowDatum) => row.appendChild(createPixel(rowDatum, pixelSize)));
-    return row;
-};
-const renderSign = function ({ target, data, width, sampleWidth = Math.round(0.2 * width), pixelSize = 0.5, interval = 300, }) {
-    if (sampleWidth <= 0) {
-        return;
-    }
-    for (let i = 0, l = data.length - 1; i < l; i += sampleWidth) {
-        const row = createPixelRow({
-            data,
-            rowIndex: i,
-            rowSize: sampleWidth,
-            pixelSize,
+    const pixelHeight = Math.floor(totalCells / sampleWidth);
+    if (totalCells % sampleWidth !== 0) {
+        console.warn('readyLED: LED grid is not a perfect rectangle', {
+            totalCells,
+            sampleWidth,
+            pixelHeight,
         });
-        target.appendChild(row);
     }
-    if (target.getAttribute('data-scrolling') !== 'true') {
-        setInterval(() => {
-            target.setAttribute('data-scrolling', 'true');
-            const rows = document.querySelectorAll('.readyled-row');
-            for (let i = 0, l = rows.length; i < l; ++i) {
-                const row = rows[i];
-                const shiftPixel = row.firstElementChild;
-                if (!shiftPixel) {
-                    continue;
+    const cssPixelSize = cssSizeInPixels(getCSSProperty('--readyled-pixel-size', '4'), target);
+    const cssPixelGap = cssSizeInPixels(getCSSProperty('--readyled-pixel-gap', '0.5'), target);
+    const color = getCSSProperty('--readyled-pixel-color', 'red');
+    const glow = getCSSProperty('--readyled-pixel-glow', color);
+    const glowSize = parseFloat(getCSSProperty('--readyled-pixel-glow-size', '1.2'));
+    const bgColor = getCSSProperty('--readyled-bg-color', 'black');
+    const offColor = getCSSProperty('--readyled-pixel-off-color', 'black');
+    const pxSize = cssPixelSize * pixelSize * 4;
+    const pxGap = cssPixelGap * pixelSize * 4;
+    const step = pxSize + pxGap;
+    const ledCanvas = document.createElement("canvas");
+    ledCanvas.width = sampleWidth * step;
+    ledCanvas.height = pixelHeight * step;
+    const lctx = ledCanvas.getContext("2d");
+    if (!lctx) {
+        return { url: '', height: 0, width: 0 };
+    }
+    // Dark housing background
+    lctx.fillStyle = bgColor;
+    lctx.fillRect(0, 0, ledCanvas.width, ledCanvas.height);
+    const half = pxSize / 2;
+    const drawGrid = (drawDark) => {
+        for (let y = 0; y < pixelHeight; y++) {
+            const dataY = y * sampleWidth;
+            for (let x = 0; x < sampleWidth; x++) {
+                const cx = x * step + step / 2;
+                const cy = y * step + step / 2;
+                // console.log('cx, cy', cx, cy);
+                lctx.beginPath();
+                lctx.arc(cx, cy, half, 0, Math.PI * 2);
+                if (!drawDark && data[dataY + x]) {
+                    // Lit pixel — colour + glow
+                    lctx.fillStyle = color;
+                    lctx.shadowColor = glow;
+                    lctx.shadowBlur = pxSize * glowSize;
+                    lctx.fill();
+                    lctx.shadowBlur = 0;
+                    lctx.shadowColor = 'transparent';
                 }
-                row.appendChild(shiftPixel);
+                if (drawDark && !data[dataY + x]) {
+                    // Off pixel — faint dot (visible grid pattern)
+                    lctx.fillStyle = offColor;
+                    lctx.fill();
+                }
             }
-        }, interval);
-    }
+        }
+    };
+    drawGrid(true);
+    drawGrid(false);
+    return {
+        url: ledCanvas.toDataURL("image/png"),
+        width: ledCanvas.width,
+        height: ledCanvas.height,
+    };
 };
-const runReadyLEDDemo = () => {
-    if (!document.body) {
-        console.error('document.body not available');
+const renderSign = ({ data, pixelSize, sampleWidth, target, text, }) => {
+    const { url, width, height } = createLEDImage({ data, pixelSize, sampleWidth, target });
+    if (!url) {
         return;
     }
-    const text = ` WE'RE READY TO BELIEVE YOU! (804) 482-1217 -`;
-    let config = {
-        pixelHeight: 10,
-        scrollSpeed: 150,
-        signWidth: 320,
-        target: document.body,
-        text,
-    };
-    const readyLEDConfig = document.getElementById('readyled-config');
-    if (readyLEDConfig) {
-        config = {
-            ...config,
-            ...JSON.parse(readyLEDConfig.innerText),
-        };
-    }
-    readyLED(config).then();
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = text;
+    img.width = width * 0.25;
+    img.height = height * 0.25;
+    const imgForScroll = document.createElement('img');
+    imgForScroll.src = url;
+    imgForScroll.alt = '';
+    imgForScroll.width = width * 0.25;
+    imgForScroll.height = height * 0.25;
+    target.appendChild(img);
+    target.appendChild(imgForScroll);
 };
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', runReadyLEDDemo, { once: true });
-}
-else {
-    runReadyLEDDemo();
-}
 //# sourceMappingURL=readyled.js.map

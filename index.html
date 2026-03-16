@@ -3,15 +3,26 @@
 <head>
     <style>
         :root {
-            /* Base visual size for each LED pixel (1em × 1em in the sign). */
-            --readyled-pixel-font-size: 4px;
-            /* Gap between LED pixels. */
-            --readyled-pixel-margin: 0.1em;
+            --readyled-pixel-size: 4px;
+            --readyled-pixel-gap: 0.1em;
+            --readyled-pixel-color: red;
+            --readyled-pixel-off-color: #111;
+            --readyled-animation-duration: 10s;
+            --readyled-columns: 500;
         }
 
         @font-face {
             font-family: "Elan";
             src: local("Elan AT Medium"), url("elan.woff2") format("woff2");
+        }
+
+        @keyframes readyled-scroll {
+            from {
+                transform: translateX(0);
+            }
+            to {
+                transform: translateX(-50%);
+            }
         }
 
         #readyled-config {
@@ -20,16 +31,31 @@
         }
 
         .readyled-sign {
-            font-size: var(--readyled-pixel-font-size);
+            font-size: var(--readyled-pixel-size);
             line-height: 0;
-
             overflow-x: hidden;
             background-color: #000;
         }
 
+        .readyled-sign-track {
+            display: flex;
+            width: max-content;
+            will-change: transform;
+        }
+
+        .readyled-sign-track.ready {
+            animation: readyled-scroll
+                var(--readyled-animation-duration, 10s)
+                steps(var(--readyled-columns)) infinite;
+        }
+
+        .readyled-sign img {
+            display: inline-block;
+        }
+
         .readyled-pixel {
             display: inline-block;
-            margin: var(--readyled-pixel-margin);
+            margin: var(--readyled-pixel-gap);
             border-radius: 50%;
         }
 
@@ -42,13 +68,13 @@
     <div contenteditable="true" id="readyled-config">
         {
           "font": "Elan",
-          "fallbackFont": "Arial",
+          "fallbackFont": "serif",
           "fontCheckInterval": 100,
           "maxWait": 3,
           "pixelHeight": 10,
           "scrollSpeed": 150,
           "signWidth": 320,
-          "text": "WE'RE READY TO BELIEVE YOU! (804) 482-1217 -"
+          "text": " WE'RE READY TO BELIEVE YOU! (804) 482-1217 "
         }
     </div>
     <div>
