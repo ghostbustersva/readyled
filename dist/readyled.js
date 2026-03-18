@@ -1,10 +1,10 @@
 let readyLEDRequestId = 0;
 const isString = (value) => typeof value === 'string';
-const getCSSProperty = (propertyName, defaultValue) => {
-    if (!document.documentElement) {
+const getCSSProperty = (element = document.documentElement, propertyName, defaultValue) => {
+    if (!element) {
         return defaultValue;
     }
-    const value = window.getComputedStyle(document.documentElement).getPropertyValue(propertyName).trim();
+    const value = window.getComputedStyle(element).getPropertyValue(propertyName).trim();
     return value === '' ? defaultValue : value;
 };
 const cssSizeInPixels = (value, element = document.body) => {
@@ -137,8 +137,8 @@ const renderReadyLED = (params) => {
         target: track,
         text,
     });
-    const cssPixelSize = cssSizeInPixels(getCSSProperty('--readyled-pixel-size', '4'), sign);
-    const cssPixelGap = cssSizeInPixels(getCSSProperty('--readyled-pixel-gap', '0.5'), sign);
+    const cssPixelSize = cssSizeInPixels(getCSSProperty(sign, '--readyled-pixel-size', '4'), sign);
+    const cssPixelGap = cssSizeInPixels(getCSSProperty(sign, '--readyled-pixel-gap', '0.5'), sign);
     const cellWidth = cssPixelSize + cssPixelGap;
     const desiredWidth = signWidth ?? pixelWidth;
     const snappedWidth = snapToClosestEvenMultiple(desiredWidth, cellWidth);
@@ -207,13 +207,13 @@ const createLEDImage = ({ target, data, pixelSize = 0.5, sampleWidth, }) => {
             pixelHeight,
         });
     }
-    const cssPixelSize = cssSizeInPixels(getCSSProperty('--readyled-pixel-size', '4'), target);
-    const cssPixelGap = cssSizeInPixels(getCSSProperty('--readyled-pixel-gap', '0.5'), target);
-    const color = getCSSProperty('--readyled-pixel-color', 'red');
-    const glow = getCSSProperty('--readyled-pixel-glow', color);
-    const glowSize = parseFloat(getCSSProperty('--readyled-pixel-glow-size', '1.2'));
-    const bgColor = getCSSProperty('--readyled-bg-color', 'black');
-    const offColor = getCSSProperty('--readyled-pixel-off-color', 'black');
+    const cssPixelSize = cssSizeInPixels(getCSSProperty(target, '--readyled-pixel-size', '4'), target);
+    const cssPixelGap = cssSizeInPixels(getCSSProperty(target, '--readyled-pixel-gap', '0.5'), target);
+    const color = getCSSProperty(target, '--readyled-pixel-color', 'red');
+    const glow = getCSSProperty(target, '--readyled-pixel-glow', color);
+    const glowSize = parseFloat(getCSSProperty(target, '--readyled-pixel-glow-size', '1.2'));
+    const bgColor = getCSSProperty(target, '--readyled-bg-color', 'black');
+    const offColor = getCSSProperty(target, '--readyled-pixel-off-color', 'black');
     const pxSize = cssPixelSize * pixelSize * 4;
     const pxGap = cssPixelGap * pixelSize * 4;
     const step = pxSize + pxGap;
