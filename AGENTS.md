@@ -5,7 +5,8 @@ A zero-dependency TypeScript browser library that renders text as a scrolling LE
 
 ## Architecture
 
-**Single source file**: `src/readyled.ts` → compiled to `dist/` via `tsc`.
+- **Source**: `src/readyled.ts` is the single TS source file for the library logic.
+- **Bundled output**: Parcel uses `index.html` as the entry point and produces a browser-ready bundle in `dist/`.
 
 **Data flow** (all inside `readyled.ts`):
 1. `readyLED()` *(exported, async)* – increments a request token, resolves which font to render with, then drops stale in-flight calls so older waits do not overwrite newer renders
@@ -17,19 +18,26 @@ A zero-dependency TypeScript browser library that renders text as a scrolling LE
 7. `renderSign()` – renders a rasterised LED image into an `<img>` pair and relies on CSS animation (driven by `--readyled-columns` and `--readyled-animation-duration`) for scrolling
 8. `createLEDImage()` – raster helper that converts the boolean pixel grid into a PNG data URL using circular LEDs, CSS-driven sizing, and optional glow
 
-**Standalone demo mode**: `index.html` imports `./dist/readyled.js`, loads styles from `styles/readyled.css`, and wires up a JSON config editor in `#readyled-config` plus a **START** button that (re)invokes `readyLED()` with the current JSON.
+**Standalone demo/bundle**: `index.html` is the HTML entry; Parcel discovers and bundles `src/readyled.ts` (via its script imports) into `dist/`, wiring up the correct script tags in the output HTML.
 
 ## Build
+
 ```sh
-pnpm exec tsc          # compile src/ → dist/
-pnpm exec tsc --watch  # watch mode
+pnpm run build   # Parcel build of index.html → dist/
+pnpm run dev     # Parcel dev server for the demo (hot reload)
 ```
-No bundler. Output is plain ESM (`module: esnext`, `target: esnext`). The demo `index.html` imports directly from `./dist/readyled.js`.
+
+- Parcel is the primary build tool; TypeScript is used via Parcel’s TS pipeline (no separate `tsc` step for the main build).
+- Output is a browser-ready bundle (JS/CSS/assets) emitted to `dist/`.
 
 There is no test runner (`test` script is a stub).
 
 ## Demo
-Open `index.html` directly in a browser (or a local static server). The demo auto-runs once the DOM is ready, and **START** reruns it with the current JSON from `#readyled-config`. The editable config exposes `font`, `fallbackFont`, `fontCheckInterval`, `maxWait`, `pixelHeight`, `scrollSpeed`, and `signWidth`, so you can watch the primary font wait/fallback behavior and width snapping without changing code.
+
+- Use `pnpm run dev` for a live-reloading dev server; open the printed localhost URL.
+- For a static build, run `pnpm run build` and then serve the `dist/` directory with any static server.
+
+The editable config in `#readyled-config` exposes `font`, `fallbackFont`, `fontCheckInterval`, `maxWait`, `pixelHeight`, `scrollSpeed`, and `signWidth`.
 
 ## Key Conventions
 

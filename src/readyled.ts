@@ -101,15 +101,11 @@ const waitForFont = async (
     }
 
     // Trigger font loading by adding a hidden element that uses the font
+    let loader: HTMLSpanElement | undefined = undefined;
     if (document.body) {
-        const loader = document.createElement('span');
-        loader.setAttribute('style', `
-            position:absolute;
-            top:-9999px;
-            left:-9999px;
-            visibility:hidden;
-            font-family:${fontFamily};
-        `);
+        loader = document.createElement('span');
+        loader.classList.add('readyled-fontloader');
+        loader.setAttribute('style', `font-family:${fontFamily};`);
         loader.textContent = fontFamily;
         document.body.appendChild(loader);
     }
@@ -117,14 +113,17 @@ const waitForFont = async (
     const pollDelay = Math.max(1, fontCheckInterval);
     const deadline = Date.now() + maxWaitMilliseconds;
 
-    while (Date.now() < deadline) {
+    let available = isFontAvailable(fontFamily);
+    while (!available && Date.now() < deadline) {
         await wait(Math.min(pollDelay, Math.max(deadline - Date.now(), 0)));
-        if (isFontAvailable(fontFamily)) {
-            return true;
-        }
+        available = isFontAvailable(fontFamily);
     }
 
-    return isFontAvailable(fontFamily);
+    if (loader) {
+        loader.parentElement?.removeChild(loader)
+    }
+
+    return available;
 };
 
 type ResolveFontFamilyParams = Pick<ReadyLEDParams, 'fallbackFont' | 'font' | 'fontCheckInterval' | 'maxWait'>;
@@ -141,7 +140,7 @@ const resolveFontFamily = async ({
         return font;
     }
 
-    if (isString(fallbackFont) && isFontAvailable(fallbackFont)) {
+    if (isString(fallbackFont) && await waitForFont(fallbackFont, maxWaitMilliseconds, fontCheckInterval)) {
         return fallbackFont;
     }
 

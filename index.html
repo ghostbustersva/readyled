@@ -13,10 +13,10 @@
 
         @font-face {
             font-family: "Elan";
-            src: local("Elan AT Medium"), url("../elan.woff2") format("woff2");
+            src: local("Elan AT Medium"), url("./elan.woff2") format("woff2");
         }
     </style>
-    <link rel="stylesheet" href="./styles/readyled.css">
+    <link rel="stylesheet" href="./dist/readyled.css">
 </head>
 <body>
     <div contenteditable="true" id="readyled-config">
@@ -35,7 +35,7 @@
         <button id="startButton">START</button>
     </div>
     <script type="module">
-        import { readyLED} from './dist/readyled.js';
+        import { readyLED } from './dist/readyled.js';
         const startLED = () => {
             const readyLEDConfig = document.getElementById('readyled-config');
             if (readyLEDConfig) {

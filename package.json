@@ -2,8 +2,12 @@
   "name": "readyled",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "src": "src/readyled.ts",
+  "module": "dist/readyled.js",
   "scripts": {
+    "build": "pnpm exec rollup -c rollup.config.mjs",
+    "build:prod": "NODE_ENV=production pnpm exec rollup -c rollup.config.mjs",
+    "dev": "pnpm exec rollup -c rollup.config.mjs -w",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -11,6 +15,10 @@
   "license": "ISC",
   "packageManager": "pnpm@10.12.1",
   "devDependencies": {
+    "@rollup/plugin-node-resolve": "^16.0.0",
+    "@rollup/plugin-typescript": "^12.1.2",
+    "rollup": "^4.21.0",
+    "rollup-plugin-copy": "^3.5.0",
     "typescript": "^5.9.3"
   }
 }
