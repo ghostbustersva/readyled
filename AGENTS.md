@@ -1,56 +1,73 @@
 # ReadyLED – Agent Guide
 
 ## What This Is
-A zero-dependency TypeScript browser library that renders text as a scrolling LED dot-matrix sign using Canvas API for rasterisation and pure DOM for display.
+A zero-dependency TypeScript browser library that renders text as a scrolling LED dot-matrix sign. Text is rasterised via the Canvas API into a boolean pixel grid, then turned into a PNG and scrolled using pure DOM + CSS animation.
 
-## Architecture
+## Architecture & Data Flow (`src/readyled.ts`)
 
-- **Source**: `src/readyled.ts` is the single TS source file for the library logic.
-- **Bundled output**: Parcel uses `index.html` as the entry point and produces a browser-ready bundle in `dist/`.
+- **Entry type**: `ReadyLEDParams` – requires `target`, `pixelHeight`, `text`; optional `font`, `fallbackFont`, `fontCheckInterval`, `maxWait`, `scrollSpeed`, `signWidth`.
+- **Async entry**: `readyLED(params)` – bumps a module-level request token, waits for fonts, then bails if its token is stale before delegating to `renderReadyLED({ ...params, font })`.
+- **Type guard**: `isString(value)` – narrows `font`/`fallbackFont` to `string` before use.
+- **CSS helpers**: `getCSSProperty(element, name, default)` + `cssSizeInPixels(value, element)` – read CSS custom properties and convert CSS lengths (including `em`) into device pixels by measuring a hidden DOM node.
+- **Font probing**:
+  - `isFontAvailable(fontFamily?)` – checks `document.fonts.check` with proper quoting; treats fonts as available if the Font Loading API is missing or `fontFamily` is falsy.
+  - `waitForFont(fontFamily, maxWaitMs, fontCheckInterval)` – optionally injects a hidden `.readyled-fontloader` span that uses the font, then polls `isFontAvailable` until timeout; cleans up the loader.
+  - `resolveFontFamily({ font, fallbackFont, fontCheckInterval, maxWait })` – waits up to `maxWait` seconds for `font`, then `fallbackFont`, then falls back to `'sans-serif'`. Rendering is never skipped.
+- **Raster pipeline**:
+  - `renderReadyLED(params & { font: string })`
+    - Validates `font` with `isString` at runtime and early-returns if not a string.
+    - Reuses an existing `.readyled-sign` under `target` if present (clears `innerHTML`), otherwise creates it, then appends a `.readyled-sign-track` child.
+    - Chooses a fixed canvas font size and derives a coarse `renderWidth`/`renderHeight` from `text.length`, then a `pixelWidth` scaled to `pixelHeight`.
+    - Calls `renderAndResampleText(...)` to obtain `{ data: boolean[], width: sampleWidth }`.
+    - **Zero-width guard**: if `sampleWidth <= 0` or `data.length === 0`, sets `sign.style.width` to `signWidth ?? sampleWidth`, appends the sign, and returns (no scrolling images, no animation).
+    - Otherwise appends `sign`, then calls `renderSign(...)` to populate the track with two `<img>` elements.
+    - Reads `--readyled-pixel-size` / `--readyled-pixel-gap` via `getCSSProperty` + `cssSizeInPixels`, computes `cellWidth = pixelSize + pixelGap`, and snaps the sign width:
+      - `desiredWidth = signWidth ?? pixelWidth`
+      - `snappedWidth = snapToClosestEvenMultiple(desiredWidth, cellWidth)`
+      - sets `sign.style.width = snappedWidth + 'px'`.
+    - Sets scroll CSS variables: `--readyled-columns = sampleWidth`, `--readyled-animation-duration = sampleWidth * scrollSpeed + 'ms'`, then adds `.ready` to the track to start the CSS animation.
+  - `renderAndResampleText({ width, height, text, fontFamily, fontSize, sampleWidth, sampleHeight, threshold })`
+    - Creates an off-screen `<canvas>`, sets `width`/`height`, and draws text using `${fontSize}px ${fontFamily}`.
+    - Uses `ctx.measureText(text).width` as `measuredWidth` and computes `actualSampleWidth` from the measured width and `sampleHeight`, so the boolean grid covers only the drawn text extent (no trailing blank columns).
+    - Reads RGBA data via `getImageData`, using `noUncheckedIndexedAccess`-safe reads (`src[idx] ?? 0`). Converts to grayscale luminance and sets each boolean `data[y * actualSampleWidth + x] = luminance < threshold`. Returns `{ data, width: actualSampleWidth }`.
+  - `createLEDImage({ data, pixelSize, sampleWidth, target })`
+    - Validates the LED grid: if `!sampleWidth` or `data.length === 0`, returns an empty `{ url: '' }`.
+    - Computes `pixelHeight = Math.floor(totalCells / sampleWidth)`. If `totalCells % sampleWidth !== 0`, logs a warning (`readyLED: LED grid is not a perfect rectangle`) to flag a shape mismatch.
+    - Reads visual parameters from CSS on `target` or document defaults: `--readyled-pixel-size`, `--readyled-pixel-gap`, `--readyled-pixel-color`, `--readyled-pixel-glow`, `--readyled-pixel-glow-size`, `--readyled-bg-color`, `--readyled-pixel-off-color`.
+    - Computes the canvas step size (`step = pxSize + pxGap`) and allocates a `canvas` sized to `sampleWidth * step` by `pixelHeight * step`.
+    - Draws a dark background, then two passes of circular LEDs: one for unlit dots (grid pattern), one for lit dots (colour + optional glow). Returns a PNG data URL and dimensions.
+  - `renderSign({ data, pixelSize, sampleWidth, target, text })`
+    - Calls `createLEDImage`, aborts if `url` is empty.
+    - Creates two `<img>` elements using the same `url`, scaled to 25% of the raster dimensions via inline `style`; the second image has an empty `alt`. Appends both to the track so CSS can scroll across a doubled strip.
 
-**Data flow** (all inside `readyled.ts`):
-1. `readyLED()` *(exported, async)* – increments a request token, resolves which font to render with, then drops stale in-flight calls so older waits do not overwrite newer renders
-2. `isFontAvailable()` – checks `document.fonts.check(...)` with font-name normalization; if the Font Loading API is unsupported, it treats the font as available
-3. `isString()` – type guard that checks whether a value is a string; used to narrow `font` before rendering
-4. `waitForFont()` / `resolveFontFamily()` – poll the requested font for up to `maxWait` seconds at `fontCheckInterval` ms, then fall back to `fallbackFont`, then `'sans-serif'`; rendering is never skipped
-5. `renderReadyLED()` *(requires `font: string`)* – accepts a pre-resolved font string, validates it with `isString()`, creates/reuses `.readyled-sign`, clears prior DOM, computes raster + sample dimensions, snaps the sign width (or configured `signWidth`) to the closest even multiple of the LED pixel+gap width, and appends the sign to `params.target`
-6. `renderAndResampleText()` – draws text on an off-screen `<canvas>` at `96px`, uses `ctx.measureText(text).width` to derive the actual sample width, then nearest-neighbour downsamples to a `boolean[]` pixel grid (luminance threshold `< 128` = ON)
-7. `renderSign()` – renders a rasterised LED image into an `<img>` pair and relies on CSS animation (driven by `--readyled-columns` and `--readyled-animation-duration`) for scrolling
-8. `createLEDImage()` – raster helper that converts the boolean pixel grid into a PNG data URL using circular LEDs, CSS-driven sizing, and optional glow
+## Build, Bundle & Demo Workflow (Rollup)
 
-**Standalone demo/bundle**: `index.html` is the HTML entry; Parcel discovers and bundles `src/readyled.ts` (via its script imports) into `dist/`, wiring up the correct script tags in the output HTML.
+- **Build tool**: Rollup (ESM output).
+- **Config**: `rollup.config.mjs`
+  - `input: 'src/readyled.ts'`.
+  - `output.file: 'dist/readyled.js'`, `format: 'esm'`.
+  - Plugins:
+    - `@rollup/plugin-node-resolve` – resolves `.ts` / `.js` module imports.
+    - `@rollup/plugin-typescript` – compiles TypeScript via Rollup.
+    - `rollup-plugin-copy` – copies `styles/readyled.css` into `dist/` on build.
+- **CSS handling**:
+  - Source stylesheet: `styles/readyled.css`.
+  - Build step copies it verbatim to `dist/readyled.css`.
+  - The demo `index.html` links `<link rel="stylesheet" href="./dist/readyled.css">`.
+- **Demo entry**: `index.html`
+  - Defines base CSS custom properties for LED sizing, margins, colours, and scroll behavior using `--readyled-*` variables.
+  - Provides a `@font-face` for the demo font (e.g. `"Elan"` via `elan.woff2`).
+  - Loads the built module with `<script type="module"> import { readyLED } from './dist/readyled.js'; … </script>` and passes JSON from `#readyled-config` into `readyLED`.
 
-## Build
+## Key Behaviors & Conventions
 
-```sh
-pnpm run build   # Parcel build of index.html → dist/
-pnpm run dev     # Parcel dev server for the demo (hot reload)
-```
-
-- Parcel is the primary build tool; TypeScript is used via Parcel’s TS pipeline (no separate `tsc` step for the main build).
-- Output is a browser-ready bundle (JS/CSS/assets) emitted to `dist/`.
-
-There is no test runner (`test` script is a stub).
-
-## Demo
-
-- Use `pnpm run dev` for a live-reloading dev server; open the printed localhost URL.
-- For a static build, run `pnpm run build` and then serve the `dist/` directory with any static server.
-
-The editable config in `#readyled-config` exposes `font`, `fallbackFont`, `fontCheckInterval`, `maxWait`, `pixelHeight`, `scrollSpeed`, and `signWidth`.
-
-## Key Conventions
-
-- **Pixel sizing (CSS-driven)**: the visual LED size and gap are controlled via CSS custom properties in `styles/readyled.css` (e.g. `--readyled-pixel-size`, `--readyled-pixel-gap`), which are read at runtime by `getCSSProperty()` and converted to pixels via `cssSizeInPixels()` inside `createLEDImage()` and width snapping logic in `renderReadyLED()`.
-- **Width snapping**: when `signWidth` is provided (or when the content-derived width is used), `renderReadyLED()` snaps the sign's `style.width` to the closest even multiple of the LED cell width (pixel size + gap) so the viewport always shows a whole number of LED columns.
-- **`noUncheckedIndexedAccess: true`**: all array reads require a nullish coalescing fallback (e.g. `src[idx] ?? 0`). Failing to do this is a type error.
-- **Font waiting**: `readyLED()` waits up to `maxWait` seconds for `params.font`, polling every `fontCheckInterval` ms. If the primary font never becomes available, it renders with `fallbackFont`, then `'sans-serif'`.
-- **Font type safety**: `renderReadyLED()` has a narrowed type signature `(params: ReadyLEDParams & { font: string })` and a runtime `isString()` guard to ensure `fontFamily` is never `undefined` when passed to `renderAndResampleText()`.
-- **Re-entrant rendering**: `readyLED()` reuses an existing `.readyled-sign` element (clears `innerHTML`) rather than creating a new one on repeated calls.
-- **Async stale-call guard**: the module-level request token prevents an older `readyLED()` call from rendering after a newer call starts waiting on a different font.
-- **Measured-width sampling**: `renderAndResampleText()` trims trailing blank space by sampling only across `ctx.measureText(text).width`; do not reintroduce a post-process blank-column pass.
-- **LED grid invariant**: `createLEDImage()` assumes `data.length === sampleWidth * pixelHeight`; if `data.length % sampleWidth !== 0`, it logs a warning that the grid is not a perfect rectangle. Keep `sampleWidth` in sync with the `width` returned from `renderAndResampleText()`.
-- **Scroll control**: scrolling is driven by a CSS animation on `.readyled-sign-track.ready`, parameterised by `--readyled-columns` and `--readyled-animation-duration`; `renderReadyLED()` is responsible for setting these custom properties.
-- **Zero-width guard**: empty text can produce a zero sample width; `renderReadyLED()` / `renderSign()` explicitly bail out rather than entering a zero-step loop.
-- **`nametape.woff2`**: an additional font bundled in the project root but not wired up in `index.html` – it can be used once you add a matching `@font-face` rule (e.g. in `styles/readyled.css`) and ensure the font is loaded before calling `readyLED({ font: "Nametape", ... })`.
-- **Config shape** (`ReadyLEDParams`): `target`, `pixelHeight`, and `text` are required; `font`, `fallbackFont`, `fontCheckInterval`, `maxWait`, `scrollSpeed` (default `150` ms), and `signWidth` are optional.
+- **Functional / declarative style**: prefer small, focused functions (<100 lines) and pure helpers (e.g. `getCSSProperty`, `cssSizeInPixels`, `isFontAvailable`, `waitForFont`). Avoid mixing DOM mutation, rendering, and calculations in the same function.
+- **Font loading / waiting**: `readyLED()` never skips rendering. It waits up to `maxWait` seconds for `font`, then `fallbackFont`, polling every `fontCheckInterval` ms. If neither loads in time, it renders with `'sans-serif'`.
+- **Async stale-call guard**: every `readyLED()` call increments a module-level request id; after awaiting font resolution it checks whether its id is still current. If not, it returns without rendering, so older calls cannot overwrite newer ones.
+- **Re-entrant DOM behavior**: `renderReadyLED()` reuses an existing `.readyled-sign` within `params.target`, clearing its `innerHTML` instead of creating duplicate containers.
+- **CSS-driven pixel sizing**: both the LED raster (`createLEDImage`) and viewport width snapping (`renderReadyLED`) derive their notion of “pixel size” and “gap” from CSS (`--readyled-pixel-size`, `--readyled-pixel-gap`, etc.) via `getCSSProperty` + `cssSizeInPixels`. Visual size is controlled in CSS; JS adapts to whatever units/styles are in force.
+- **Width snapping**: the visible sign width is snapped to the closest even multiple of the LED cell width (`pixel size + gap`) using a helper such as `snapToClosestEvenMultiple`. This ensures the viewport shows a whole number of LED columns and aligns with the `steps(--readyled-columns)` animation.
+- **LED grid invariant**: `createLEDImage()` expects `data.length === sampleWidth * pixelHeight`. If `totalCells % sampleWidth !== 0`, it still renders but logs a warning to aid debugging sampling/width bugs.
+- **Zero-width handling**: if text rasterisation yields a zero or empty sample (`sampleWidth <= 0` or `data.length === 0`), the code sets a minimal sign width (from `signWidth` or the computed width), appends the sign, and returns—no images, no animation, and no risk of zero-step scroll loops.
+- **TypeScript strictness**: downsampling respects `noUncheckedIndexedAccess` by using `src[idx] ?? 0` for all raw RGBA reads.
+- **Config-driven demo**: the editable JSON in `#readyled-config` exposes `font`, `fallbackFont`, `fontCheckInterval`, `maxWait`, `pixelHeight`, `scrollSpeed`, and `signWidth`. Changing these and re-running the START button re-invokes `readyLED()` with a fresh request id`.
