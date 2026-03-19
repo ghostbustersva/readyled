@@ -1,6 +1,6 @@
 {
   "name": "readyled",
-  "version": "1.0.0",
+  "version": "0.1.1",
   "description": "",
   "src": "src/readyled.ts",
   "module": "dist/readyled.js",

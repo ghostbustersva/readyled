@@ -159,8 +159,8 @@ const renderReadyLED = (params: ReadyLEDParams & { font: string }) => {
     }
 
     let sign;
-    if (document.querySelector('.readyled-sign')) {
-        sign = document.querySelector('.readyled-sign') as HTMLElement;
+    if (target.querySelector('.readyled-sign')) {
+        sign = target.querySelector('.readyled-sign') as HTMLElement;
         if (sign) {
             sign.innerHTML = '';
         }
