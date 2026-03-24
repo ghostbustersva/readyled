@@ -4,6 +4,7 @@ export type ReadyLEDParams = {
     fontCheckInterval?: number;
     maxWait?: number;
     pixelHeight: number;
+    renderFontSize?: number;
     scrollSpeed?: number;
     signWidth?: number;
     target: HTMLElement;
@@ -152,7 +153,15 @@ const resolveFontFamily = async ({
 };
 
 const renderReadyLED = (params: ReadyLEDParams & { font: string }) => {
-    const { font, pixelHeight, scrollSpeed = 150, signWidth, target, text } = params;
+    const {
+        font,
+        pixelHeight,
+        renderFontSize: fontSize = 48,
+        scrollSpeed = 150,
+        signWidth,
+        target,
+        text,
+    } = params;
 
     if (!isString(font)) {
         return;
@@ -173,7 +182,6 @@ const renderReadyLED = (params: ReadyLEDParams & { font: string }) => {
     track.classList.add('readyled-sign-track');
     sign.appendChild(track);
 
-    const fontSize = 48;
     const renderWidth = Math.ceil(fontSize * 1.2 * text.length);
     const renderHeight = Math.ceil(fontSize * 0.8);
     const pixelWidth = Math.ceil(pixelHeight / renderHeight * renderWidth);

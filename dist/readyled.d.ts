@@ -4,6 +4,7 @@ export type ReadyLEDParams = {
     fontCheckInterval?: number;
     maxWait?: number;
     pixelHeight: number;
+    renderFontSize?: number;
     scrollSpeed?: number;
     signWidth?: number;
     target: HTMLElement;
