@@ -1,6 +1,6 @@
 {
-  "name": "readyled",
-  "version": "0.1.4",
+  "name": "@ghostbustersva/readyled",
+  "version": "0.1.5",
   "description": "",
   "src": "src/readyled.ts",
   "module": "dist/readyled.js",
@@ -8,11 +8,12 @@
     "build": "pnpm exec rollup -c rollup.config.mjs",
     "build:prod": "NODE_ENV=production pnpm exec rollup -c rollup.config.mjs",
     "dev": "pnpm exec rollup -c rollup.config.mjs -w",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "publish": "pnpm publish"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "packageManager": "pnpm@10.12.1",
   "devDependencies": {
     "@rollup/plugin-node-resolve": "^16.0.0",
@@ -20,5 +21,16 @@
     "rollup": "^4.21.0",
     "rollup-plugin-copy": "^3.5.0",
     "typescript": "^5.9.3"
-  }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "src",
+    "package.json",
+    "pnpm-lock.yaml",
+    "rollup.config.mjs",
+    "tsconfig.json"
+  ]
 }
